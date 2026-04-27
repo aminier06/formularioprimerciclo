@@ -201,7 +201,10 @@
   </header>
 
   <main>
-    <form id="formularioEvaluacion" novalidate>
+    <iframe name="iframeEnvio" id="iframeEnvio" style="display:none;"></iframe>
+      <form id="formularioEvaluacion" method="POST" action="https://script.google.com/macros/s/AKfycbzsUE3FYNa1iL9bHnwW-eihdMciTZjlPiOUdfdJbsJ7ckxL4QNmULEBXywfh24acHOx/exec" target="iframeEnvio" novalidate>
+        <input type="hidden" id="fecha_envio" name="fecha_envio" />
+        <input type="hidden" id="origen" name="origen" value="Formulario HTML Primer Ciclo Marzo" />
       <section class="card">
         <h2>Datos generales del centro educativo</h2>
         <div class="grid">
@@ -603,10 +606,12 @@
       }
     });
 
-    document.getElementById("formularioEvaluacion").addEventListener("submit", async event => {
+    document.getElementById("formularioEvaluacion").addEventListener("submit", event => {
       event.preventDefault();
+
       const form = event.currentTarget;
       const validSums = validateAllGroups();
+
       const codigoValido = /^\d{5}$/.test(document.getElementById("sigerd").value.trim());
       const centroEncontrado = document.getElementById("centro").value.trim() !== "";
 
@@ -627,46 +632,30 @@
         return;
       }
 
-      if (!SCRIPT_URL || SCRIPT_URL === "PEGAR_AQUI_URL_DE_APPS_SCRIPT") {
-        alert("Debe pegar primero la URL de implementación de Google Apps Script en la constante SCRIPT_URL.");
-        return;
-      }
+      document.getElementById("fecha_envio").value = new Date().toISOString();
 
       const btn = document.getElementById("btnEnviar");
-      btn.disabled = true;
-      btn.textContent = "Enviando...";
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = "Enviando...";
+      }
 
-      try {
-        const formData = new FormData(form);
-        const data = Object.fromEntries(formData.entries());
+      form.submit();
 
-        data.fecha_envio = new Date().toISOString();
-        data.origen = "Formulario HTML Primer Ciclo Marzo";
-
-        const body = new URLSearchParams();
-        Object.entries(data).forEach(([key, value]) => {
-          body.append(key, value);
-        });
-
-        await fetch(SCRIPT_URL, {
-          method: "POST",
-          mode: "no-cors",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"
-          },
-          body: body.toString()
-        });
-
+      setTimeout(() => {
         alert("CENTRO REGISTRADO CORRECTAMENTE.");
         form.reset();
         validateAllGroups();
-      } catch (error) {
-        console.error(error);
-        alert("No se pudo enviar el formulario. Revise la URL del Apps Script y la implementación del Web App.");
-      } finally {
-        btn.disabled = false;
-        btn.textContent = "Validar y enviar";
-      }
+        const status = document.getElementById("centroStatus");
+        if (status) {
+          status.textContent = "";
+          status.className = "help";
+        }
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = "Validar y enviar";
+        }
+      }, 1200);
     });
 
     document.getElementById("formularioEvaluacion").addEventListener("reset", () => {
