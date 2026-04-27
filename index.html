@@ -135,6 +135,8 @@
       background: var(--alerta);
       color: #7a4b00;
     }
+    .centro-ok { color: var(--ok); font-weight: 700; }
+    .centro-error { color: var(--error); font-weight: 700; }
     .error-msg {
       color: var(--error);
       font-weight: 700;
@@ -210,11 +212,11 @@
           <div class="field">
             <label for="sigerd" class="required">Código SIGERD del centro educativo</label>
             <input type="text" id="sigerd" name="sigerd" pattern="\d{5}" maxlength="5" inputmode="numeric" required />
-            <div class="help">Debe contener exactamente 5 dígitos.</div>
+            <div class="help">Debe contener exactamente 5 dígitos.</div><div id="centroStatus" class="help"></div>
           </div>
           <div class="field">
             <label for="centro" class="required">Nombre completo del centro educativo</label>
-            <input type="text" id="centro" name="centro" required />
+            <input type="text" id="centro" name="centro" required readonly />
           </div>
           <div class="field">
             <label for="regional" class="required">Seleccione su Regional</label>
@@ -368,7 +370,13 @@
 <option value="1805 - DUVERGÉ">1805 - DUVERGÉ</option>
             </select>
           </div>
+          
           <div class="field">
+            <label for="sector" class="required">Sector</label>
+            <input type="text" id="sector" name="sector" readonly required />
+            <div class="help">Se completa automáticamente al escribir el código SIGERD.</div>
+          </div>
+<div class="field">
             <label for="tipo" class="required">Tipo</label>
             <select id="tipo" name="tipo" required>
               <option value="">Seleccione...</option>
@@ -523,6 +531,64 @@
       return ok;
     }
 
+
+    async function autocompletarCentroPorCodigo() {
+      const sigerdInput = document.getElementById("sigerd");
+      const codigo = sigerdInput.value.trim();
+      const status = document.getElementById("centroStatus");
+
+      if (codigo.length === 0) {
+        limpiarDatosCentro();
+        status.textContent = "";
+        status.className = "help";
+        return;
+      }
+
+      if (!/^\d{5}$/.test(codigo)) {
+        limpiarDatosCentro();
+        status.textContent = "Digite un código SIGERD válido de 5 dígitos.";
+        status.className = "help centro-error";
+        return;
+      }
+
+      status.textContent = "Buscando centro...";
+      status.className = "help";
+
+      try {
+        const response = await fetch(SCRIPT_URL + "?codigo=" + encodeURIComponent(codigo));
+        const result = await response.json();
+
+        if (result.status === "success" && result.data) {
+          document.getElementById("centro").value = result.data.centro || "";
+          document.getElementById("regional").value = result.data.regional || "";
+          document.getElementById("distrito").value = result.data.distrito || "";
+          document.getElementById("sector").value = result.data.sector || "";
+
+          status.textContent = "Centro encontrado y datos completados automáticamente.";
+          status.className = "help centro-ok";
+        } else {
+          limpiarDatosCentro();
+          status.textContent = "No se encontró un centro con ese código SIGERD.";
+          status.className = "help centro-error";
+        }
+      } catch (error) {
+        limpiarDatosCentro();
+        status.textContent = "No fue posible consultar la hoja Centros. Revise la implementación de Apps Script.";
+        status.className = "help centro-error";
+        console.error(error);
+      }
+    }
+
+    function limpiarDatosCentro() {
+      document.getElementById("centro").value = "";
+      document.getElementById("regional").value = "";
+      document.getElementById("distrito").value = "";
+      const sector = document.getElementById("sector");
+      if (sector) sector.value = "";
+    }
+
+    document.getElementById("sigerd").addEventListener("input", autocompletarCentroPorCodigo);
+
     renderSections();
 
     document.addEventListener("input", event => {
@@ -541,6 +607,20 @@
       event.preventDefault();
       const form = event.currentTarget;
       const validSums = validateAllGroups();
+      const codigoValido = /^\d{5}$/.test(document.getElementById("sigerd").value.trim());
+      const centroEncontrado = document.getElementById("centro").value.trim() !== "";
+
+      if (!codigoValido) {
+        alert("Debe digitar un código SIGERD válido de 5 dígitos.");
+        document.getElementById("sigerd").focus();
+        return;
+      }
+
+      if (!centroEncontrado) {
+        alert("El código SIGERD no está registrado en la hoja Centros o no se ha completado el autollenado.");
+        document.getElementById("sigerd").focus();
+        return;
+      }
 
       if (!form.checkValidity() || !validSums) {
         form.reportValidity();
@@ -568,7 +648,7 @@
           body: JSON.stringify(data)
         });
 
-        alert("CENTRO REGISTRADO CORRECTAMENTE.");
+        alert("Formulario enviado correctamente. Los datos fueron remitidos a la hoja de cálculo.");
         form.reset();
         validateAllGroups();
       } catch (error) {
