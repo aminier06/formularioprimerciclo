@@ -639,17 +639,20 @@
       try {
         const formData = new FormData(form);
         const data = Object.fromEntries(formData.entries());
+
         data.fecha_envio = new Date().toISOString();
+        data.origen = "Formulario HTML Primer Ciclo Marzo";
 
         await fetch(SCRIPT_URL, {
           method: "POST",
           mode: "no-cors",
-           mode: "no-cors",
-          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          headers: {
+            "Content-Type": "text/plain;charset=utf-8"
+          },
           body: JSON.stringify(data)
         });
 
-        alert("Formulario enviado correctamente. Los datos fueron remitidos a la hoja de cálculo.");
+        alert("CENTRO REGISTRADO CORRECTAMENTE.");
         form.reset();
         validateAllGroups();
       } catch (error) {
