@@ -454,13 +454,34 @@
       return Number.isFinite(value) ? value : 0;
     }
 
+    function getVisibleLabel(field) {
+      // Mantiene la nomenclatura técnica en el atributo name,
+      // pero muestra al usuario el nombre completo del nivel.
+
+      // Niveles de desempeño por indicador
+      if (/\(E\)\s*$/.test(field)) return "Elemental";
+      if (/\(A\)\s*$/.test(field)) return "Aceptable";
+      if (/\(S\)\s*$/.test(field)) return "Satisfactorio";
+
+      // Niveles de lectura
+      if (/LT-N5/i.test(field)) return "Fluido";
+      if (/LT-N4/i.test(field)) return "No fluido";
+      if (/LT-N3/i.test(field)) return "Palabras";
+      if (/LT-N2/i.test(field)) return "Sílabas";
+      if (/LT-N1/i.test(field)) return "Imágenes";
+
+      return field;
+    }
+
     function makeInput(field, grade, groupId) {
       const id = slug(field);
+      const visibleLabel = getVisibleLabel(field);
+
       return `
         <div class="field">
-          <label for="${id}" class="required">${field}</label>
+          <label for="${id}" class="required">${visibleLabel}</label>
           <input type="number" id="${id}" name="${id}" min="0" step="1" required
-                 data-grade="${grade}" data-group="${groupId}" />
+                 data-grade="${grade}" data-group="${groupId}" data-codigo="${field}" />
         </div>`;
     }
 
