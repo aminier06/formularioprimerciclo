@@ -80,6 +80,13 @@
       background: white;
     }
     input[type="number"] { text-align: right; }
+
+    .select-bloqueado {
+      background: #eef3f7;
+      color: #52606d;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
     .grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -223,7 +230,7 @@
           </div>
           <div class="field">
             <label for="regional" class="required">Seleccione su Regional</label>
-            <select id="regional" name="regional" required>
+            <select id="regional" name="regional" required class="select-bloqueado" aria-readonly="true" tabindex="-1">
               <option value="">Seleccione...</option>
               <option value="01 - BARAHONA">01 - BARAHONA</option>
 <option value="02 - SAN JUAN DE LA MAGUANA">02 - SAN JUAN DE LA MAGUANA</option>
@@ -247,7 +254,7 @@
           </div>
           <div class="field">
             <label for="distrito" class="required">Seleccione su Distrito Educativo</label>
-            <select id="distrito" name="distrito" required>
+            <select id="distrito" name="distrito" required class="select-bloqueado" aria-readonly="true" tabindex="-1">
               <option value="">Seleccione...</option>
               <option value="0101 - PEDERNALES">0101 - PEDERNALES</option>
 <option value="0102 - ENRIQUILLO">0102 - ENRIQUILLO</option>
@@ -609,6 +616,24 @@
       const sector = document.getElementById("sector");
       if (sector) sector.value = "";
     }
+
+
+
+    function bloquearSelectAutocompletado(id) {
+      const select = document.getElementById(id);
+      if (!select) return;
+
+      select.classList.add("select-bloqueado");
+      select.setAttribute("aria-readonly", "true");
+      select.setAttribute("tabindex", "-1");
+
+      select.addEventListener("mousedown", event => event.preventDefault());
+      select.addEventListener("keydown", event => event.preventDefault());
+      select.addEventListener("touchstart", event => event.preventDefault(), { passive: false });
+    }
+
+    bloquearSelectAutocompletado("regional");
+    bloquearSelectAutocompletado("distrito");
 
     document.getElementById("sigerd").addEventListener("input", autocompletarCentroPorCodigo);
 
