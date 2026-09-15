@@ -259,7 +259,7 @@
   <main>
     <iframe name="iframeEnvio" id="iframeEnvio" style="display:none;"></iframe>
     <div id="avisoCierreFormulario" class="cierre-aviso" role="status" aria-live="polite"></div>
-      <form id="formularioEvaluacion" method="POST" action="https://script.google.com/macros/s/AKfycbyKLwqQ7WA81vO8iA6jKiun-xgHvAmu7BuvJ2bY7h3ZOWZqHHDUo07SFb-2-jYsxGZY/exec" target="iframeEnvio" novalidate>
+      <form id="formularioEvaluacion" method="POST" target="iframeEnvio" novalidate>
         <input type="hidden" id="fecha_envio" name="fecha_envio" />
         <input type="hidden" id="origen" name="origen" value="Formulario HTML Primer Ciclo Marzo" />
         <input type="hidden" id="responsable_nombre" name="responsable_nombre" />
@@ -379,9 +379,26 @@
   © 2026 Ministerio de Educación – Desarrollado por Aneudy Minier
 </footer>
   <script>
-    // PEGUE AQUÍ LA URL DE IMPLEMENTACIÓN DE GOOGLE APPS SCRIPT.
-    // Debe terminar normalmente en /exec
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwyzPr6YJz6IxVhw9lOla1dkkXWiZa9qEKEX0nfGRU5BdbJFDY8X9YqYlf9tb79HZW2/exec"; // Debe coincidir con el action del formulario
+    /* ÚNICA URL DE IMPLEMENTACIÓN DE APPS SCRIPT ─────────────────────────
+       Antes había dos: este fetch usaba la implementación vigente y el
+       atributo action del formulario apuntaba a una anterior, de modo que los
+       envíos se procesaban con la implementación obsoleta.
+
+       Ahora se define una sola vez y el action del formulario se asigna desde
+       aquí al cargar la página, así no pueden volver a separarse.
+
+       Al publicar una versión nueva en Apps Script use Implementar → Gestionar
+       implementaciones → editar la existente → Versión nueva. Si crea una
+       implementación nueva, la URL cambia y hay que pegarla aquí.
+       La implementación debe estar configurada como:
+         Ejecutar como      : Yo
+         Quién tiene acceso : Cualquier persona
+       Si el acceso es "Cualquier usuario con cuenta de Google", la petición se
+       redirige a la pantalla de inicio de sesión, devuelve HTML en lugar de
+       JSON y la consulta falla igual. */
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwyzPr6YJz6IxVhw9lOla1dkkXWiZa9qEKEX0nfGRU5BdbJFDY8X9YqYlf9tb79HZW2/exec";
+
+    document.getElementById("formularioEvaluacion").action = SCRIPT_URL;
 
     // Fecha de cierre del formulario: 12 de junio de 2026, 2:00 p. m.
     // Se usa la zona horaria de República Dominicana (-04:00).
@@ -882,9 +899,36 @@
       status.textContent = "Buscando centro...";
       status.className = "help";
 
+      // Cada pulsación dispara una consulta: se cancela la anterior para que
+      // una respuesta lenta no sobrescriba a una más reciente.
+      if (consultaEnCurso) consultaEnCurso.abort();
+      const control = new AbortController();
+      consultaEnCurso = control;
+      const limite = setTimeout(() => control.abort(), 15000);
+
       try {
-        const response = await fetch(SCRIPT_URL + "?codigo=" + encodeURIComponent(codigo));
-        const result = await response.json();
+        const response = await fetch(
+          SCRIPT_URL + "?codigo=" + encodeURIComponent(codigo),
+          { signal: control.signal, redirect: "follow" }
+        );
+
+        // Se lee como texto antes de convertir: si la implementación no está
+        // publicada o exige inicio de sesión, Google responde con HTML y
+        // response.json() fallaría con un error que no explica nada.
+        const cuerpo = await response.text();
+        let result;
+        try {
+          result = JSON.parse(cuerpo);
+        } catch (_) {
+          limpiarDatosCentro();
+          const pareceLogin = /accounts\.google\.com|iniciar sesión|sign in/i.test(cuerpo);
+          status.textContent = pareceLogin
+            ? "La implementación de Apps Script exige inicio de sesión. Vuelva a publicarla con acceso para \u0022Cualquier persona\u0022."
+            : "La implementación de Apps Script no devolvió datos válidos. Verifique que la URL termine en /exec y que la versión publicada esté vigente.";
+          status.className = "help centro-error";
+          console.error("Respuesta no JSON de Apps Script:", cuerpo.slice(0, 400));
+          return;
+        }
 
         if (result.status === "success" && result.data) {
           document.getElementById("centro").value = result.data.centro || "";
@@ -894,18 +938,40 @@
 
           status.textContent = "Centro encontrado y datos completados automáticamente.";
           status.className = "help centro-ok";
+
+        } else if (result.status === "error") {
+          // El script respondió, pero algo falló del lado de la hoja.
+          limpiarDatosCentro();
+          status.textContent = "Error en la hoja de cálculo: " + (result.message || "sin detalle.");
+          status.className = "help centro-error";
+          console.error("Apps Script devolvió error:", result.message);
+
         } else {
           limpiarDatosCentro();
           status.textContent = "No se encontró un centro con ese código SIGERD.";
           status.className = "help centro-error";
         }
+
       } catch (error) {
         limpiarDatosCentro();
-        status.textContent = "No fue posible consultar la hoja Centros. Revise la implementación de Apps Script.";
-        status.className = "help centro-error";
-        console.error(error);
+        if (error.name === "AbortError") {
+          // Cancelada por una consulta más reciente: no es un fallo que mostrar.
+          if (control === consultaEnCurso) {
+            status.textContent = "La consulta tardó demasiado. Intente de nuevo.";
+            status.className = "help centro-error";
+          }
+        } else {
+          status.textContent = "No se pudo conectar con Apps Script. Revise su conexión o que la URL de implementación sea la vigente.";
+          status.className = "help centro-error";
+          console.error("Fallo de red al consultar centros:", error);
+        }
+      } finally {
+        clearTimeout(limite);
+        if (control === consultaEnCurso) consultaEnCurso = null;
       }
     }
+
+    let consultaEnCurso = null;
 
     function limpiarDatosCentro() {
       document.getElementById("centro").value = "";
